@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aula — Three.js (base)</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <!-- Import map: mapea el specifier "three" al archivo de la CDN -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/examples/jsm/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="hud"><span class="pill">Mouse: orbitar / rueda: zoom / Shift+arrastre: pan</span></div>
+  <div id="credit">Aula base • Three.js</div>
+
+  <!-- Tu módulo principal -->
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
