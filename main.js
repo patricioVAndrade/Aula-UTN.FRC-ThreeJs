@@ -1,6 +1,20 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
+
+
+// === Loaders de modelos ===
+const gltfLoader = new GLTFLoader();
+const draco = new DRACOLoader();
+draco.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
+gltfLoader.setDRACOLoader(draco);
+
+// ----- Colisiones / obstáculos (declaración temprana) -----
+const obstacles = []; // para colisiones (declarada antes de crear puertas u otros modelos)
+
+
 
 /** =================
  *  ESCENA + RENDERER
@@ -9,8 +23,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0b0f14);
 
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 100);
-// Altura de ojos y spawn en zona despejada (frente del aula)
-camera.position.set(0, 1.65, -1.0);
+camera.position.set(0, 1.65, -1.0); // spawn
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
@@ -61,13 +74,26 @@ const lampY = 5.6;
 /** =========================
  *  AULA (piso, paredes, techo)
  * ========================= */
-const floor = new THREE.Mesh(
-  new THREE.PlaneGeometry(20, 14),
-  new THREE.MeshStandardMaterial({ color: 0x383e49, roughness: 0.95 })
-);
+// ---------- Piso con textura de madera ----------
+const texLoader = new THREE.TextureLoader();
+
+const parquetColor = texLoader.load('./assets/pisomadera.jpg');
+parquetColor.colorSpace = THREE.SRGBColorSpace;
+parquetColor.wrapS = parquetColor.wrapT = THREE.RepeatWrapping;
+parquetColor.repeat.set(7, 6); // ajustá para que el tamaño se vea natural
+
+const parquetMat = new THREE.MeshStandardMaterial({
+  map: parquetColor,
+  roughness: 0.85,
+  metalness: 0.0,
+});
+
+const floorGeom = new THREE.PlaneGeometry(20, 16);
+const floor = new THREE.Mesh(floorGeom, parquetMat);
 floor.rotation.x = -Math.PI / 2;
 floor.receiveShadow = true;
 scene.add(floor);
+
 
 // Pared fondo (z=-8)
 const backWall = new THREE.Mesh(
@@ -98,13 +124,16 @@ rightWall.position.set(10, 3, -1);
 rightWall.receiveShadow = true;
 scene.add(rightWall);
 
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+
 // Pared frontal (cierra el aula por delante)
 const frontWall = new THREE.Mesh(
   new THREE.PlaneGeometry(20, 6),
   new THREE.MeshStandardMaterial({ color: 0xf2f5f9, roughness: 1.0 })
 );
-frontWall.rotation.y = Math.PI;       // mira hacia atrás
-frontWall.position.set(0, 3, 0.2);    // un poco delante del 0
+frontWall.rotation.y = Math.PI;
+frontWall.position.set(0, 3, 0.2);
 frontWall.receiveShadow = true;
 scene.add(frontWall);
 
@@ -128,16 +157,15 @@ function addBaseboard(x, y, z, w, h, rotY=0) {
   scene.add(m);
 }
 const baseY = 0.12;
-addBaseboard(0, baseY, -7.98, 20, 0.24, 0);            // fondo
-addBaseboard(-9.98, baseY, -1, 14, 0.24, Math.PI/2);   // izquierda
-addBaseboard(9.98, baseY, -1, 14, 0.24, Math.PI/2);    // derecha
+addBaseboard(0, baseY, -7.98, 20, 0.24, 0);
+addBaseboard(-9.98, baseY, -1, 14, 0.24, Math.PI/2);
+addBaseboard(9.98, baseY, -1, 14, 0.24, Math.PI/2);
 
 /** ============================
  *  PIZARRONES DE VIDRIO + FONDO
  * ============================ */
 function addGlassBoard({ position, size=[6,2.6], tint=0x99c4ff }) {
   const [w,h] = size;
-  // fondo blanco (ligeramente detrás)
   const back = new THREE.Mesh(
     new THREE.PlaneGeometry(w, h),
     new THREE.MeshStandardMaterial({ color: 0xffffff })
@@ -145,7 +173,6 @@ function addGlassBoard({ position, size=[6,2.6], tint=0x99c4ff }) {
   back.position.set(position.x, position.y, position.z - 0.05);
   scene.add(back);
 
-  // vidrio
   const glass = new THREE.Mesh(
     new THREE.PlaneGeometry(w, h),
     new THREE.MeshPhysicalMaterial({
@@ -161,7 +188,6 @@ function addGlassBoard({ position, size=[6,2.6], tint=0x99c4ff }) {
   glass.position.copy(position);
   scene.add(glass);
 
-  // marco simple
   const frameMat = new THREE.MeshStandardMaterial({ color: 0x222a35, metalness: 0.2, roughness: 0.6 });
   const frame = new THREE.Group();
   const t = 0.05;
@@ -172,15 +198,40 @@ function addGlassBoard({ position, size=[6,2.6], tint=0x99c4ff }) {
   const rg = new THREE.Mesh(new THREE.BoxGeometry(t, h, t), frameMat); rg.position.set(position.x + w/2 + t/2, position.y, z); frame.add(rg);
   scene.add(frame);
 }
-// Principal, centrado en pared del fondo
 addGlassBoard({ position: new THREE.Vector3(0, 1.5, -7.9), size: [6, 2.6] });
-// Secundario, más chico, a la izquierda
+
 addGlassBoard({ position: new THREE.Vector3(-6.5, 1.4, -7.9), size: [3.2, 1.8], tint: 0xa7d2ff });
+
+
+
+// Helper para cargar modelos GLB/GLTF
+async function addModel(url, { position=[0,0,0], rotation=[0,0,0], scale=1, castShadow=true, receiveShadow=false, obstacleRadius=null } = {}) {
+  return new Promise((resolve, reject) => {
+    gltfLoader.load(url, (gltf) => {
+      const root = gltf.scene || gltf.scenes[0];
+      root.traverse(o => { if (o.isMesh) { o.castShadow = castShadow; o.receiveShadow = receiveShadow; }});
+      root.position.set(...position);
+      root.rotation.set(...rotation);
+      root.scale.setScalar(scale);
+      scene.add(root);
+
+      if (obstacleRadius !== null) {
+        if (obstacleRadius > 0) obstacles.push({ x: root.position.x, z: root.position.z, r: obstacleRadius });
+      } else {
+        const box = new THREE.Box3().setFromObject(root);
+        const size = new THREE.Vector3(); box.getSize(size);
+        const r = Math.max(size.x, size.z) * 0.5;
+        if (Number.isFinite(r) && r > 0.05) obstacles.push({ x: root.position.x, z: root.position.z, r });
+      }
+      resolve(root);
+    }, undefined, reject);
+  });
+}
 
 /** =================
  *  PUPITRES + SILLAS
  * ================= */
-const obstacles = []; // para colisiones (pupitres/sillas)
+
 
 function addDesk(x, z) {
   const desk = new THREE.Group();
@@ -199,54 +250,40 @@ function addDesk(x, z) {
   desk.castShadow = true;
   scene.add(desk);
 
-  // obstáculo circular del pupitre (más delgado)
-  obstacles.push({ x, z, r: 0.6 });
+  obstacles.push({ x, z, r: 0.55 }); // ajustado (antes 0.6)
 }
 
 function addChair(x, z) {
   const chair = new THREE.Group();
-  // asiento
   const seat = new THREE.Mesh(
     new THREE.BoxGeometry(0.5, 0.05, 0.5),
     new THREE.MeshStandardMaterial({ color: 0x9a7b58, roughness: 0.7 })
   );
   seat.position.y = 0.44; chair.add(seat);
 
-  // Respaldo hacia atrás (positivo z)
   const back = new THREE.Mesh(
     new THREE.BoxGeometry(0.5, 0.45, 0.05),
     new THREE.MeshStandardMaterial({ color: 0x9a7b58, roughness: 0.7 })
   );
-  back.position.set(0, 0.66, +0.22);
+  back.position.set(0, 0.66, +0.22); // respaldo atrás
   chair.add(back);
 
-  // patas
   const legMat = new THREE.MeshStandardMaterial({ color: 0x4a5568, metalness: 0.4, roughness: 0.5 });
   const legGeom = new THREE.CylinderGeometry(0.02, 0.02, 0.44, 10);
   [[ 0.22,0.22, 0.22],[-0.22,0.22, 0.22],[0.22,0.22,-0.22],[-0.22,0.22,-0.22]]
     .forEach(p => { const m = new THREE.Mesh(legGeom, legMat); m.position.set(...p); chair.add(m); });
 
-  // La silla queda entre el alumno y el pupitre (ligeramente detrás del pupitre)
   chair.position.set(x, 0, z + 0.55);
   chair.castShadow = true;
   scene.add(chair);
 
-  // obstáculo circular de la silla (más delgado)
-  obstacles.push({ x: x, z: z + 0.55, r: 0.4 });
+  obstacles.push({ x: x, z: z + 0.55, r: 0.35 }); // ajustado (antes 0.4)
 }
 
-// ==== Layout con PASILLOS (central y laterales) ====
-// columnas (x) dejando pasillo central (~2 m) y laterales
-const COLS_X = [-6, -2, 2, 6];   // 4 columnas
-// filas (z) más separadas del frente al fondo
-const ROWS_Z = [-2.2, -4.4, -6.2]; // 3 filas
-
-for (const z of ROWS_Z) {
-  for (const x of COLS_X) {
-    addDesk(x, z);
-    addChair(x, z);
-  }
-}
+// Layout con pasillos
+const COLS_X = [-6, -2, 2, 6];
+const ROWS_Z = [-2.2, -4.4, -6.2];
+for (const z of ROWS_Z) for (const x of COLS_X) { addDesk(x, z); addChair(x, z); }
 
 // Escritorio del docente
 (function addTeacherDesk(){
@@ -284,26 +321,22 @@ orbit.minDistance = 2.2;
 orbit.maxDistance = 18;
 orbit.maxPolarAngle = Math.PI * 0.49;
 
-// FPS (pointer lock)
 const fps = new PointerLockControls(camera, document.body);
 
-// UI para activar FPS con click
+// HUD
 const hud = document.getElementById('hud');
 function setHUD(msg){ if (hud) hud.innerHTML = `<span class="pill">${msg}</span>`; }
 setHUD('Click para activar caminar (W/A/S/D, mouse mira) • Esc para salir');
 
-document.body.addEventListener('click', () => {
-  if (!isFPS) return;
-  fps.lock();
-});
+let isFPS = true;
+orbit.enabled = !isFPS;
+
+document.body.addEventListener('click', () => { if (isFPS) fps.lock(); });
 fps.addEventListener('lock', () => setHUD('W/A/S/D moverse • Mouse mirar • Shift correr • Espacio saltito • Esc salir'));
 fps.addEventListener('unlock', () => setHUD('Click para activar caminar (W/A/S/D, mouse mira) • Esc para salir'));
 
-let isFPS = true;           // ← activar/desactivar modo primera persona
-orbit.enabled = !isFPS;     // si FPS, apagamos Orbit
-
 /** ==========================
- *  MOVIMIENTO EN PRIMERA PERSONA
+ *  FPS: INPUT + FÍSICA SIMPLE
  * ========================== */
 const keys = { w:false, a:false, s:false, d:false, shift:false, space:false };
 addEventListener('keydown', e => {
@@ -323,35 +356,41 @@ addEventListener('keyup', e => {
   if (e.code === 'Space') keys.space = false;
 });
 
-// Parámetros
-const speed = 2.2;             // m/s
-const runMult = 1.8;           // correr con Shift
+// Movimiento y colisiones
+const speed = 2.2;
+const runMult = 1.8;
 const jumpVel = 3.2;
 const gravity = 9.8;
 let velY = 0;
 let onFloor = true;
 
-// límites del aula (x,z) — caja utilizable (ajustado a frontWall)
+// límites del aula (x,z)
 const bounds = { minX: -8.8, maxX: 8.8, minZ: -7.0, maxZ: -0.6 };
 
-// utilidad: clamp
-const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+// Resolver colisiones de forma estable (iterativa y suave)
+function resolveCollisions(qx, qz, r = 0.30) {
+  qx = Math.max(bounds.minX, Math.min(bounds.maxX, qx));
+  qz = Math.max(bounds.minZ, Math.min(bounds.maxZ, qz));
 
-// colisión circular contra obstáculos + paredes
-function collideCircle(nx, nz, r=0.30) {
-  for (const o of obstacles) {
-    const dx = nx - o.x, dz = nz - o.z;
-    const dist = Math.hypot(dx, dz);
-    if (dist < (r + o.r)) {
-      const ang = Math.atan2(dz, dx);
-      const push = (r + o.r) - dist + 0.02;
-      nx += Math.cos(ang) * push;
-      nz += Math.sin(ang) * push;
+  for (let iter = 0; iter < 3; iter++) {
+    let pushed = false;
+    for (const o of obstacles) {
+      const dx = qx - o.x, dz = qz - o.z;
+      const dist = Math.hypot(dx, dz);
+      const minDist = r + o.r;
+      if (dist > 1e-6 && dist < minDist) {
+        const overlap = (minDist - dist) + 0.001; // epsilon
+        const nx = dx / dist, nz = dz / dist;
+        qx += nx * overlap;
+        qz += nz * overlap;
+        pushed = true;
+      }
     }
+    qx = Math.max(bounds.minX, Math.min(bounds.maxX, qx));
+    qz = Math.max(bounds.minZ, Math.min(bounds.maxZ, qz));
+    if (!pushed) break;
   }
-  nx = clamp(nx, bounds.minX, bounds.maxX);
-  nz = clamp(nz, bounds.minZ, bounds.maxZ);
-  return { nx, nz };
+  return { nx: qx, nz: qz };
 }
 
 /** =========
@@ -361,7 +400,7 @@ let prev = performance.now();
 function animate() {
   requestAnimationFrame(animate);
   const now = performance.now();
-  const dt = Math.min(0.033, (now - prev) / 1000); // cap 30ms
+  const dt = Math.min(0.033, (now - prev) / 1000);
   prev = now;
 
   if (isFPS) {
@@ -371,20 +410,20 @@ function animate() {
       // dirección plano XZ
       const forward = new THREE.Vector3();
       camera.getWorldDirection(forward);
-      forward.y = 0; 
-      forward.normalize();
+      forward.y = 0; forward.normalize();
 
-      // ✅ derecha correcta = forward × up  (NO up × forward)
-      const up = new THREE.Vector3(0, 1, 0);
+      // derecha correcta = forward × up
+      const up = new THREE.Vector3(0,1,0);
       const right = new THREE.Vector3().crossVectors(forward, up).normalize();
 
-      const move = new THREE.Vector3();
+      // intención de movimiento
+      const intent = new THREE.Vector3();
       let v = speed * (keys.shift ? runMult : 1);
-      if (keys.w) move.add(forward);
-      if (keys.s) move.sub(forward);
-      if (keys.d) move.add(right);   // D → derecha
-      if (keys.a) move.sub(right);   // A → izquierda
-      if (move.lengthSq() > 0) move.setLength(v * dt);
+      if (keys.w) intent.add(forward);
+      if (keys.s) intent.sub(forward);
+      if (keys.d) intent.add(right);
+      if (keys.a) intent.sub(right);
+      if (intent.lengthSq() > 0) intent.setLength(v * dt);
 
       // salto / gravedad
       if (onFloor && keys.space) { velY = jumpVel; onFloor = false; }
@@ -392,17 +431,23 @@ function animate() {
       let ny = camera.position.y + velY * dt;
       if (ny < 1.65) { ny = 1.65; velY = 0; onFloor = true; }
 
-      // aplicar movimiento + colisiones SOLO si te movés
-      let nx = camera.position.x;
-      let nz = camera.position.z;
-      if (move.lengthSq() > 0) {
-        nx += move.x;
-        nz += move.z;
-        const c = collideCircle(nx, nz, 0.30);
-        nx = c.nx; nz = c.nz;
+      // Sub-steps: dividir movimiento para evitar empujes bruscos
+      let qx = camera.position.x;
+      let qz = camera.position.z;
+
+      if (intent.lengthSq() > 0) {
+        const stepLen = 0.15;                              // tamaño de paso (m)
+        const steps = Math.max(1, Math.ceil(intent.length() / stepLen));
+        const step = intent.clone().multiplyScalar(1 / steps);
+        for (let i = 0; i < steps; i++) {
+          qx += step.x;
+          qz += step.z;
+          const solved = resolveCollisions(qx, qz, 0.30);  // radio del jugador
+          qx = solved.nx; qz = solved.nz;
+        }
       }
 
-      camera.position.set(nx, ny, nz);
+      camera.position.set(qx, ny, qz);
     }
   } else {
     orbit.enabled = true;
@@ -423,9 +468,7 @@ addEventListener('resize', () => {
 });
 
 // Activá pointer lock con click (FPS)
-document.body.addEventListener('click', () => {
-  if (isFPS) fps.lock();
-});
+document.body.addEventListener('click', () => { if (isFPS) fps.lock(); });
 fps.addEventListener('lock', () => {
   const hud = document.getElementById('hud');
   if (hud) hud.innerHTML = '<span class="pill">W/A/S/D moverse • Mouse mirar • Shift correr • Espacio saltito • Esc salir</span>';
@@ -434,3 +477,37 @@ fps.addEventListener('unlock', () => {
   const hud = document.getElementById('hud');
   if (hud) hud.innerHTML = '<span class="pill">Click para activar caminar (W/A/S/D, mouse mira) • Esc para salir</span>';
 });
+
+/** =========
+ *   ASSETS 
+ * ========= */
+(async () => {
+  try {
+    await addModel('./assets/mochila.glb', {
+      position: [ -2.1, 0.01, -2.6 ],
+      rotation: [ 0, Math.PI * 0.2, 0 ],
+      scale: 0.9,
+      obstacleRadius: 0.35
+    });
+
+    await addModel('./assets/reloj.glb', {
+      position: [ 0, 4.5, 0.19 ],
+      rotation: [ 0, Math.PI, 0 ],
+      scale: 0.1,
+      obstacleRadius: 0
+    });
+
+    // 🚪 Tu puerta doble importada
+    await addModel('./assets/puertadoble.glb', {
+      position: [ 9.92, 0.0, -3.5 ],   // mueve en X hasta encajar con la pared
+      rotation: [ 0, Math.PI / 1, 0 ], // gira para que mire al aula
+      scale: 0.008,                     // ajustá si está muy grande/pequeña
+      obstacleRadius: 1.0,             // evita que atravieses la puerta
+      castShadow: false,
+      receiveShadow: false
+    });
+
+  } catch (err) {
+    console.error('Error cargando assets:', err);
+  }
+})();
