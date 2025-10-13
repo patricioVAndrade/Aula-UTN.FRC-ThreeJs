@@ -9,7 +9,9 @@ export class InteractionManager {
     this.pdfFrame = pdfElements.frame;
     this.closeBtn = pdfElements.closeBtn;
     this.potential = null;
-    this.interactionDist = 2;
+  this.interactionDist = 2;
+  this.videoPlaying = true;
+  this.videoState = { playing: true };
 
     this.closeBtn.addEventListener('click', () => this.stopInteraction());
     addEventListener('keydown', e => { if (e.code === 'KeyE') { if (this.player.isSitting || this.player.isReadingPDF) this.stopInteraction(); else this.handleInteraction(); }});
@@ -36,6 +38,25 @@ export class InteractionManager {
       this.pdfFrame.src = this.potential.path;
       this.pdfViewer.classList.remove('hidden');
       this.player.controls.unlock();
+    }
+
+    if (this.potential.type === 'video') {
+      const iframe = this.potential.iframe;
+      try {
+        const cmd = this.videoPlaying ? 'pauseVideo' : 'playVideo';
+        iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: cmd, args: [] }), '*');
+        this.videoPlaying = !this.videoPlaying;
+      } catch (e) { /* noop */ }
+    }
+
+    if (this.potential.type === 'video') {
+      // Alternar play/pause usando YouTube IFrame API via postMessage
+      const iframe = this.potential.iframe;
+      try {
+        const cmd = this.videoState.playing ? 'pauseVideo' : 'playVideo';
+        iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: cmd, args: [] }), '*');
+        this.videoState.playing = !this.videoState.playing;
+      } catch (e) { /* noop */ }
     }
   }
 

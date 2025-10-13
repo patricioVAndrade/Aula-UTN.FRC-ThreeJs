@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { CSS3DRenderer } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
 
 export class SceneManager {
   constructor() {
@@ -21,6 +22,19 @@ export class SceneManager {
     canvasParent.appendChild(renderer.domElement);
     this.renderer = renderer;
     return renderer;
+  }
+
+  createCSSRenderer(canvasParent = document.body) {
+    this.cssScene = new THREE.Scene();
+    const css = new CSS3DRenderer();
+    css.setSize(innerWidth, innerHeight);
+    css.domElement.style.position = 'absolute';
+    css.domElement.style.top = '0';
+    css.domElement.style.left = '0';
+    css.domElement.style.pointerEvents = 'none'; // no bloquear clics del canvas
+    canvasParent.appendChild(css.domElement);
+    this.cssRenderer = css;
+    return css;
   }
 
   setupLights() {

@@ -10,6 +10,8 @@ import { addSchoolDesks } from './src/objects/schoolDesks.js';
 import { addClock } from './src/objects/clock.js';
 import { addDoor } from './src/objects/door.js';
 import { addBackpack } from './src/objects/backpack.js';
+import { addVideoScreen } from './src/objects/videoScreen.js';
+import { addVideoButton } from './src/objects/videoButton.js';
 
 // ===================================
 // SETUP BÁSICO (modularizado)
@@ -19,6 +21,7 @@ const scene = sceneMgr.scene;
 const assets = new AssetsManager();
 const texLoader = assets.texLoader;
 const renderer = sceneMgr.createRenderer(document.body);
+const cssRenderer = sceneMgr.createCSSRenderer(document.body);
 sceneMgr.setupLights();
 
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 200);
@@ -43,12 +46,23 @@ sceneMgr.createRoom(texLoader);
 // ===================================
 async function setupScene() {
   await addWhiteboard(scene, assets, sceneMgr);
-  await addTeacherDesk(scene, assets, obstacles);
+  const teacherDesk = await addTeacherDesk(scene, assets, obstacles);
   await addNoticeBoard(scene, assets, sceneMgr, obstacles, interactiveObjects);
   await addSchoolDesks(scene, assets, obstacles, interactiveObjects);
   await addClock(scene, assets, sceneMgr);
   await addDoor(scene, assets, sceneMgr, obstacles);
   await addBackpack(scene, assets, obstacles);
+  // Pantalla de video en pared frontal: usa la escena CSS3D
+  const screenObj = addVideoScreen(sceneMgr.cssScene, 'https://www.youtube.com/watch?v=cenYWW8zJUE', sceneMgr, { width: 8, height: 4.5, position: new THREE.Vector3(0, 3, sceneMgr.AULA_LARGO/2 - 0.01), rotationY: Math.PI });
+  // Agregar punto de interacción para el video (E alterna reproducir/pausar)
+  interactiveObjects.push({ type: 'video', position: screenObj.position.clone(), iframe: screenObj.element });
+  // Botón físico en el escritorio del profesor para activar/desactivar el video
+  const videoButton = addVideoButton(teacherDesk, scene);
+  setupVideoRaycast(videoButton, screenObj.element);
+  // Punto de interacción para mostrar cartel HUD cerca del botón
+  const worldPos = new THREE.Vector3();
+  videoButton.getWorldPosition(worldPos);
+  interactiveObjects.push({ type: 'video', position: worldPos.clone(), iframe: screenObj.element });
 }
 setupScene();
 
@@ -80,11 +94,43 @@ function animate() {
   else if (potentialInteraction) {
     if (potentialInteraction.type === 'chair') player.setHUD('Presiona [E] para sentarte');
     if (potentialInteraction.type === 'pdf') player.setHUD('Presiona [E] para leer el documento');
+    if (potentialInteraction.type === 'video') player.setHUD('Presiona [E] para activar/desactivar video');
   } else if (player.controls.isLocked) player.setHUD('W/A/S/D moverse • Mouse mirar • Shift correr • Espacio saltito • Esc salir');
   else player.setHUD('Click para activar caminar (W/A/S/D, mouse mira) • Esc para salir');
 
   player.update(dt);
   renderer.render(scene, camera);
+  if (sceneMgr.cssRenderer && sceneMgr.cssScene) sceneMgr.cssRenderer.render(sceneMgr.cssScene, camera);
 }
 animate();
-addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); if (sceneMgr.cssRenderer) sceneMgr.cssRenderer.setSize(innerWidth, innerHeight); });
+
+// Raycasting para el botón de video
+function setupVideoRaycast(buttonMesh, iframe) {
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+  let playing = true;
+
+  function toggleVideo() {
+    try {
+      const cmd = playing ? 'pauseVideo' : 'playVideo';
+      iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: cmd, args: [] }), '*');
+      playing = !playing;
+    } catch (e) { /* noop */ }
+  }
+
+  renderer.domElement.addEventListener('click', (event) => {
+    if (!player.controls.isLocked) return; // Solo cuando estás en modo caminar
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObject(buttonMesh, true);
+    if (hits.length > 0) {
+      toggleVideo();
+      // pequeño feedback visual
+      if (buttonMesh.material.emissiveIntensity === undefined) buttonMesh.material.emissiveIntensity = 0;
+      buttonMesh.material.emissiveIntensity = buttonMesh.material.emissiveIntensity > 0 ? 0 : 0.7;
+    }
+  });
+}

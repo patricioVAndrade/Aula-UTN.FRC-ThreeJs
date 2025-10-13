@@ -8,4 +8,5 @@ export async function addTeacherDesk(scene, assets, obstacles) {
   desk.traverse(n => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; }});
   scene.add(desk);
   obstacles.push({ x: deskX, z: deskZ, r: 2.0 });
+  return desk;
 }
