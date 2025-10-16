@@ -11,7 +11,7 @@ import { addClock } from './src/objects/clock.js';
 import { addDoor } from './src/objects/door.js';
 import { addBackpack } from './src/objects/backpack.js';
 import { addVideoScreen } from './src/objects/videoScreen.js';
-import { addVideoButton } from './src/objects/videoButton.js';
+import { addChargePanel, addChargePanelLazy } from './src/objects/chargePanel.js';
 
 // ===================================
 // SETUP BÁSICO (modularizado)
@@ -57,11 +57,29 @@ async function setupScene() {
   // Agregar punto de interacción para el video (E alterna reproducir/pausar)
   interactiveObjects.push({ type: 'video', position: screenObj.position.clone(), iframe: screenObj.element });
   // Botón físico en el escritorio del profesor para activar/desactivar el video
-  const videoButton = addVideoButton(teacherDesk, scene);
-  setupVideoRaycast(videoButton, screenObj.element);
-  // Punto de interacción para mostrar cartel HUD cerca del botón
+  // Panel de carga en la pared con la misma función del botón
+  // Ubicar el panel al lado del pizarrón (misma pared: Z negativa), con un desplazamiento en X
+  // Hacer que el panel mire hacia la zona de bancos y sillas calculando dinámicamente el centro
+  const chairs = interactiveObjects.filter(o => o.type === 'chair');
+  let desksCenter = new THREE.Vector3(0, 1.2, 2);
+  if (chairs.length > 0) {
+    const sum = new THREE.Vector3();
+    for (const c of chairs) sum.add(c.position);
+    desksCenter = sum.multiplyScalar(1 / chairs.length);
+    desksCenter.y = 1.2; // mantener altura del panel para evitar inclinación vertical
+  }
+  // Cargar el panel en modo perezoso para que aparezca un placeholder al instante
+  const chargePanel = addChargePanelLazy(scene, assets, sceneMgr, {
+    x: 6, // desplazamiento a la derecha del pizarrón (centrado en x=0)
+    y: 2.5,
+    z: -sceneMgr.AULA_LARGO / 2,
+    lookAtTarget: desksCenter,
+    yawOffset: -1.25 // ajuste fino si la normal del modelo no coincide
+  });
+  setupVideoRaycast(chargePanel, screenObj.element);
+  // Punto de interacción para HUD (E para activar/desactivar video)
   const worldPos = new THREE.Vector3();
-  videoButton.getWorldPosition(worldPos);
+  chargePanel.getWorldPosition(worldPos);
   interactiveObjects.push({ type: 'video', position: worldPos.clone(), iframe: screenObj.element });
 }
 setupScene();
@@ -106,7 +124,7 @@ animate();
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); if (sceneMgr.cssRenderer) sceneMgr.cssRenderer.setSize(innerWidth, innerHeight); });
 
 // Raycasting para el botón de video
-function setupVideoRaycast(buttonMesh, iframe) {
+function setupVideoRaycast(targetObject, iframe) {
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
   let playing = true;
@@ -125,12 +143,19 @@ function setupVideoRaycast(buttonMesh, iframe) {
     mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(mouse, camera);
-    const hits = raycaster.intersectObject(buttonMesh, true);
+    const hits = raycaster.intersectObject(targetObject, true);
     if (hits.length > 0) {
       toggleVideo();
-      // pequeño feedback visual
-      if (buttonMesh.material.emissiveIntensity === undefined) buttonMesh.material.emissiveIntensity = 0;
-      buttonMesh.material.emissiveIntensity = buttonMesh.material.emissiveIntensity > 0 ? 0 : 0.7;
+      // pequeño feedback visual: toggle emissive de las mallas del panel
+      const toggle = (node) => {
+        node.traverse?.(child => {
+          if (child.isMesh && child.material && 'emissive' in child.material) {
+            if (child.material.emissiveIntensity === undefined) child.material.emissiveIntensity = 0;
+            child.material.emissiveIntensity = child.material.emissiveIntensity > 0 ? 0 : 0.7;
+          }
+        });
+      };
+      toggle(targetObject);
     }
   });
 }
