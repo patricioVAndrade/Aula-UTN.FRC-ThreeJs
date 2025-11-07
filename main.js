@@ -47,7 +47,10 @@ sceneMgr.createRoom(texLoader);
 // CARGA Y DISPOSICIÓN DE TUS ASSETS (CORREGIDO)
 // ===================================
 async function setupScene() {
-  await addWhiteboard(scene, assets, sceneMgr);
+  // Whiteboard ahora requiere cámara y renderer para paginación y navegación con teclas
+  const whiteboardApi = await addWhiteboard(scene, assets, sceneMgr, camera, renderer);
+  // Registrar como objeto interactivo para mostrar cartel HUD con radio ampliado
+  interactiveObjects.push({ type: 'whiteboard', position: whiteboardApi.position, interactionRadius: 7.0 });
   const teacherDesk = await addTeacherDesk(scene, assets, obstacles);
   await addNoticeBoard(scene, assets, sceneMgr, obstacles, interactiveObjects);
   await addSchoolDesks(scene, assets, obstacles, interactiveObjects);
@@ -124,7 +127,8 @@ function updateHUD(potentialInteraction) {
   } else if (potentialInteraction) {
     if (potentialInteraction.type === 'chair') player.setHUD('Presiona [E] para sentarte');
     else if (potentialInteraction.type === 'pdf') player.setHUD('Presiona [E] para leer el documento');
-    else if (potentialInteraction.type === 'video') player.setHUD('Presiona [E] play/pausa video • [R] sonido on/off');
+  else if (potentialInteraction.type === 'video') player.setHUD('Presiona [E] play/pausa video • [R] sonido on/off');
+  else if (potentialInteraction.type === 'whiteboard') player.setHUD('Usa ← → para cambiar página');
   } else if (player.controls.isLocked) {
     player.setHUD('W/A/S/D moverse • Mouse mirar • Shift correr • Espacio saltito • Esc salir');
   } else {

@@ -26,7 +26,10 @@ export class InteractionManager {
   scanPotential() {
     this.potential = null;
     if (this.player.isSitting || this.player.isReadingPDF) return;
-    for (const obj of this.objects) { if (this.camera.position.distanceTo(obj.position) < this.interactionDist) { this.potential = obj; break; } }
+    for (const obj of this.objects) {
+      const radius = obj.interactionRadius || this.interactionDist;
+      if (this.camera.position.distanceTo(obj.position) < radius) { this.potential = obj; break; }
+    }
   }
 
   handleInteraction() {
