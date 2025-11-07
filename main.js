@@ -11,7 +11,7 @@ import { addClock } from './src/objects/clock.js';
 import { addDoor } from './src/objects/door.js';
 import { addBackpack } from './src/objects/backpack.js';
 import { addVideoScreen } from './src/objects/videoScreen.js';
-import { addChargePanel, addChargePanelLazy } from './src/objects/chargePanel.js';
+import { addChargePanelLazy } from './src/objects/chargePanel.js';
 
 // ===================================
 // SETUP BÁSICO (modularizado)
@@ -37,6 +37,8 @@ const interactiveObjects = [];
 const pdfViewer = document.getElementById('pdf-viewer');
 const pdfFrame = document.getElementById('pdf-frame');
 const closePdfBtn = document.getElementById('close-pdf');
+// Referencia global al API de la pantalla para usar en el loop
+let videoScreen = null;
 
 // crear habitación (floor y paredes)
 sceneMgr.createRoom(texLoader);
@@ -52,35 +54,32 @@ async function setupScene() {
   await addClock(scene, assets, sceneMgr);
   await addDoor(scene, assets, sceneMgr, obstacles);
   await addBackpack(scene, assets, obstacles);
-  // Pantalla de video en pared frontal: usa la escena CSS3D
-  const screenObj = addVideoScreen(sceneMgr.cssScene, 'https://www.youtube.com/watch?v=cenYWW8zJUE', sceneMgr, { width: 8, height: 4.5, position: new THREE.Vector3(0, 3, sceneMgr.AULA_LARGO/2 - 0.01), rotationY: Math.PI });
-  // Agregar punto de interacción para el video (E alterna reproducir/pausar)
-  interactiveObjects.push({ type: 'video', position: screenObj.position.clone(), iframe: screenObj.element });
-  // Botón físico en el escritorio del profesor para activar/desactivar el video
-  // Panel de carga en la pared con la misma función del botón
-  // Ubicar el panel al lado del pizarrón (misma pared: Z negativa), con un desplazamiento en X
-  // Hacer que el panel mire hacia la zona de bancos y sillas calculando dinámicamente el centro
+  // Pantalla de video en pared frontal: CSS3D + marco WebGL pegado a la pared
+  videoScreen = addVideoScreen(scene, sceneMgr.cssScene, 'https://www.youtube.com/watch?v=cenYWW8zJUE', sceneMgr, { width: 8, height: 4.5, position: new THREE.Vector3(0, 3, sceneMgr.AULA_LARGO/2 - 0.02), rotationY: Math.PI });
+  interactiveObjects.push({ type: 'video', position: videoScreen.position.clone(), iframe: videoScreen.element });
+  
+  // Panel de carga con orientación hacia los bancos
   const chairs = interactiveObjects.filter(o => o.type === 'chair');
   let desksCenter = new THREE.Vector3(0, 1.2, 2);
   if (chairs.length > 0) {
     const sum = new THREE.Vector3();
-    for (const c of chairs) sum.add(c.position);
+    chairs.forEach(c => sum.add(c.position));
     desksCenter = sum.multiplyScalar(1 / chairs.length);
-    desksCenter.y = 1.2; // mantener altura del panel para evitar inclinación vertical
+    desksCenter.y = 1.2;
   }
-  // Cargar el panel en modo perezoso para que aparezca un placeholder al instante
+  
   const chargePanel = addChargePanelLazy(scene, assets, sceneMgr, {
-    x: 6, // desplazamiento a la derecha del pizarrón (centrado en x=0)
+    x: 6,
     y: 2.5,
     z: -sceneMgr.AULA_LARGO / 2,
     lookAtTarget: desksCenter,
-    yawOffset: -1.25 // ajuste fino si la normal del modelo no coincide
+    yawOffset: -1.25
   });
-  setupVideoRaycast(chargePanel, screenObj.element);
-  // Punto de interacción para HUD (E para activar/desactivar video)
+  setupVideoRaycast(chargePanel, videoScreen.element);
+  
   const worldPos = new THREE.Vector3();
   chargePanel.getWorldPosition(worldPos);
-  interactiveObjects.push({ type: 'video', position: worldPos.clone(), iframe: screenObj.element });
+  interactiveObjects.push({ type: 'video', position: worldPos.clone(), iframe: videoScreen.element });
 }
 setupScene();
 
@@ -90,8 +89,8 @@ setupScene();
 const hud = document.getElementById('hud');
 const player = new PlayerController(camera, renderer.domElement, scene, obstacles, hud);
 const interaction = new InteractionManager(camera, player, interactiveObjects, { viewer: pdfViewer, frame: pdfFrame, closeBtn: closePdfBtn });
+const visRaycaster = new THREE.Raycaster();
 
-// Habilita Pointer Lock al hacer click (requerido por el navegador)
 document.body.addEventListener('click', () => player.lock());
 renderer.domElement.addEventListener('click', () => player.lock());
 
@@ -103,59 +102,143 @@ function animate() {
   const dt = Math.min(0.033, (now - prev) / 1000);
   prev = now;
 
-  // actualizar interacciones potenciales
   interaction.scanPotential();
   const potentialInteraction = interaction.potential;
 
-  if (player.isSitting) player.setHUD('Mouse: Mirar alrededor • Presiona [E] para levantarte');
-  else if (player.isReadingPDF) {}
-  else if (potentialInteraction) {
-    if (potentialInteraction.type === 'chair') player.setHUD('Presiona [E] para sentarte');
-    if (potentialInteraction.type === 'pdf') player.setHUD('Presiona [E] para leer el documento');
-    if (potentialInteraction.type === 'video') player.setHUD('Presiona [E] para activar/desactivar video');
-  } else if (player.controls.isLocked) player.setHUD('W/A/S/D moverse • Mouse mirar • Shift correr • Espacio saltito • Esc salir');
-  else player.setHUD('Click para activar caminar (W/A/S/D, mouse mira) • Esc para salir');
-
+  updateHUD(potentialInteraction);
   player.update(dt);
+  
   renderer.render(scene, camera);
-  if (sceneMgr.cssRenderer && sceneMgr.cssScene) sceneMgr.cssRenderer.render(sceneMgr.cssScene, camera);
-}
-animate();
-addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); if (sceneMgr.cssRenderer) sceneMgr.cssRenderer.setSize(innerWidth, innerHeight); });
+  if (sceneMgr.cssRenderer && sceneMgr.cssScene) {
+    sceneMgr.cssRenderer.render(sceneMgr.cssScene, camera);
+  }
 
-// Raycasting para el botón de video
+  handleVideoOcclusion();
+}
+
+function updateHUD(potentialInteraction) {
+  if (player.isSitting) {
+    player.setHUD('Mouse: Mirar alrededor • Presiona [E] para levantarte');
+  } else if (player.isReadingPDF) {
+    // No mostrar HUD
+  } else if (potentialInteraction) {
+    if (potentialInteraction.type === 'chair') player.setHUD('Presiona [E] para sentarte');
+    else if (potentialInteraction.type === 'pdf') player.setHUD('Presiona [E] para leer el documento');
+    else if (potentialInteraction.type === 'video') player.setHUD('Presiona [E] play/pausa video • [R] sonido on/off');
+  } else if (player.controls.isLocked) {
+    player.setHUD('W/A/S/D moverse • Mouse mirar • Shift correr • Espacio saltito • Esc salir');
+  } else {
+    player.setHUD('Click para activar caminar (W/A/S/D, mouse mira) • Esc para salir');
+  }
+}
+
+function handleVideoOcclusion() {
+  if (!videoScreen || !videoScreen.cssObject) return;
+
+  const camPos = camera.position;
+  const screenPos = new THREE.Vector3();
+  videoScreen.webGroup.getWorldPosition(screenPos);
+  
+  const screenForward = new THREE.Vector3(0, 0, -1);
+  screenForward.applyQuaternion(videoScreen.webGroup.quaternion);
+  const toCam = camPos.clone().sub(screenPos).normalize();
+  const facing = screenForward.dot(toCam) < 0;
+  
+  const w = videoScreen.size.width;
+  const h = videoScreen.size.height;
+  const cols = 5, rows = 3;
+  const samples = [];
+  
+  for (let i = 0; i < cols; i++) {
+    for (let j = 0; j < rows; j++) {
+      const ox = (i / (cols - 1) - 0.5) * w * 0.9;
+      const oy = (j / (rows - 1) - 0.5) * h * 0.9;
+      const wp = new THREE.Vector3(ox, oy, 0);
+      videoScreen.webGroup.localToWorld(wp);
+      samples.push(wp);
+    }
+  }
+  
+  let visibleSamples = 0;
+  for (const sp of samples) {
+    const dir = sp.clone().sub(camPos).normalize();
+    const distToScreen = sp.distanceTo(camPos);
+    visRaycaster.set(camPos, dir);
+    visRaycaster.far = distToScreen + 0.5;
+    const hits = visRaycaster.intersectObjects(scene.children, true);
+    
+    let hitScreen = false;
+    for (const hit of hits) {
+      if (hit.distance > distToScreen - 0.3) {
+        let p = hit.object;
+        while (p) {
+          if (p === videoScreen.webGroup) {
+            hitScreen = true;
+            break;
+          }
+          p = p.parent;
+        }
+        if (hitScreen) break;
+      } else {
+        break;
+      }
+    }
+    if (hitScreen) visibleSamples++;
+  }
+  
+  const visibilityRatio = visibleSamples / samples.length;
+  const el = videoScreen.cssObject.element;
+  const shouldHide = !facing || visibilityRatio < 0.5;
+  
+  el.style.visibility = shouldHide ? 'hidden' : 'visible';
+  el.style.opacity = shouldHide ? '0' : '1';
+  
+  visRaycaster.far = Infinity;
+}
+
+animate();
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  if (sceneMgr.cssRenderer) sceneMgr.cssRenderer.setSize(innerWidth, innerHeight);
+});
+
 function setupVideoRaycast(targetObject, iframe) {
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
-  let playing = true;
-
-  function toggleVideo() {
-    try {
-      const cmd = playing ? 'pauseVideo' : 'playVideo';
-      iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: cmd, args: [] }), '*');
-      playing = !playing;
-    } catch (e) { /* noop */ }
-  }
+  let playing = false;
 
   renderer.domElement.addEventListener('click', (event) => {
-    if (!player.controls.isLocked) return; // Solo cuando estás en modo caminar
+    if (!player.controls.isLocked) return;
+    
     const rect = renderer.domElement.getBoundingClientRect();
     mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(mouse, camera);
     const hits = raycaster.intersectObject(targetObject, true);
+    
     if (hits.length > 0) {
-      toggleVideo();
-      // pequeño feedback visual: toggle emissive de las mallas del panel
-      const toggle = (node) => {
-        node.traverse?.(child => {
-          if (child.isMesh && child.material && 'emissive' in child.material) {
-            if (child.material.emissiveIntensity === undefined) child.material.emissiveIntensity = 0;
-            child.material.emissiveIntensity = child.material.emissiveIntensity > 0 ? 0 : 0.7;
-          }
-        });
-      };
-      toggle(targetObject);
+      const cmd = playing ? 'pauseVideo' : 'playVideo';
+      iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: cmd, args: [] }), '*');
+      playing = !playing;
+      
+      if (playing && !iframe.dataset.autoplayBoosted) {
+        const url = new URL(iframe.src);
+        if (url.searchParams.get('autoplay') !== '1') {
+          url.searchParams.set('autoplay', '1');
+          iframe.src = url.toString();
+          iframe.dataset.autoplayBoosted = '1';
+        }
+      }
+      
+      targetObject.traverse(child => {
+        if (child.isMesh && child.material && 'emissive' in child.material) {
+          if (child.material.emissiveIntensity === undefined) child.material.emissiveIntensity = 0;
+          child.material.emissiveIntensity = child.material.emissiveIntensity > 0 ? 0 : 0.7;
+        }
+      });
     }
   });
 }

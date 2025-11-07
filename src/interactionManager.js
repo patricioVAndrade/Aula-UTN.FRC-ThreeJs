@@ -9,12 +9,18 @@ export class InteractionManager {
     this.pdfFrame = pdfElements.frame;
     this.closeBtn = pdfElements.closeBtn;
     this.potential = null;
-  this.interactionDist = 2;
-  this.videoPlaying = true;
-  this.videoState = { playing: true };
+    this.interactionDist = 2;
+    this.videoState = { playing: false, muted: true };
 
     this.closeBtn.addEventListener('click', () => this.stopInteraction());
-    addEventListener('keydown', e => { if (e.code === 'KeyE') { if (this.player.isSitting || this.player.isReadingPDF) this.stopInteraction(); else this.handleInteraction(); }});
+    addEventListener('keydown', e => {
+      if (e.code === 'KeyE') {
+        if (this.player.isSitting || this.player.isReadingPDF) this.stopInteraction(); else this.handleInteraction();
+      }
+      if (e.code === 'KeyR') {
+        this.toggleVideoSound();
+      }
+    });
   }
 
   scanPotential() {
@@ -41,23 +47,40 @@ export class InteractionManager {
     }
 
     if (this.potential.type === 'video') {
-      const iframe = this.potential.iframe;
-      try {
-        const cmd = this.videoPlaying ? 'pauseVideo' : 'playVideo';
-        iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: cmd, args: [] }), '*');
-        this.videoPlaying = !this.videoPlaying;
-      } catch (e) { /* noop */ }
-    }
-
-    if (this.potential.type === 'video') {
       // Alternar play/pause usando YouTube IFrame API via postMessage
       const iframe = this.potential.iframe;
       try {
         const cmd = this.videoState.playing ? 'pauseVideo' : 'playVideo';
         iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: cmd, args: [] }), '*');
         this.videoState.playing = !this.videoState.playing;
+        // Fallback: si acabamos de pedir play y no arranca, forzar autoplay=1 una sola vez
+        if (this.videoState.playing && !iframe.dataset.autoplayBoosted) {
+          try {
+            const url = new URL(iframe.src);
+            if (url.searchParams.get('autoplay') !== '1') {
+              url.searchParams.set('autoplay', '1');
+              iframe.src = url.toString();
+              iframe.dataset.autoplayBoosted = '1';
+            }
+          } catch (_) { /* noop */ }
+        }
       } catch (e) { /* noop */ }
     }
+  }
+
+  toggleVideoSound() {
+    // Sólo permitir si el jugador está cerca de la pantalla de video (potencial video actual) o cualquier video object cercano
+    const nearVideo = this.objects.some(o => o.type === 'video' && this.camera.position.distanceTo(o.position) < this.interactionDist + 0.5);
+    if (!nearVideo) return;
+    // Mandar comando mute/unMute
+    const videoObj = this.objects.find(o => o.type === 'video');
+    if (!videoObj) return;
+    const iframe = videoObj.iframe;
+    try {
+      const cmd = this.videoState.muted ? 'unMute' : 'mute';
+      iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: cmd, args: [] }), '*');
+      this.videoState.muted = !this.videoState.muted;
+    } catch (e) { /* noop */ }
   }
 
   stopInteraction() {
