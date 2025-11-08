@@ -49,6 +49,14 @@ export class InteractionManager {
       this.player.controls.unlock();
     }
 
+    if (this.potential.type === 'link') {
+      // Abrir enlace principal con E (nueva pestaña)
+      try {
+        const url = this.potential.urlE;
+        if (url) window.open(url, '_blank', 'noopener');
+      } catch (_) { /* noop */ }
+    }
+
     if (this.potential.type === 'video') {
       // Alternar play/pause usando YouTube IFrame API via postMessage
       const iframe = this.potential.iframe;
@@ -72,10 +80,16 @@ export class InteractionManager {
   }
 
   toggleVideoSound() {
-    // Sólo permitir si el jugador está cerca de la pantalla de video (potencial video actual) o cualquier video object cercano
+    // Si hay un objeto de tipo 'link' cerca, usar R para abrir su urlR
+    const linkObj = this.objects.find(o => o.type === 'link' && this.camera.position.distanceTo(o.position) < (o.interactionRadius || this.interactionDist) + 0.1);
+    if (linkObj && linkObj.urlR) {
+      try { window.open(linkObj.urlR, '_blank', 'noopener'); } catch (_) { /* noop */ }
+      return;
+    }
+
+    // Si no, controlar sonido del video si estamos cerca
     const nearVideo = this.objects.some(o => o.type === 'video' && this.camera.position.distanceTo(o.position) < this.interactionDist + 0.5);
     if (!nearVideo) return;
-    // Mandar comando mute/unMute
     const videoObj = this.objects.find(o => o.type === 'video');
     if (!videoObj) return;
     const iframe = videoObj.iframe;

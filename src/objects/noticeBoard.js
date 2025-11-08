@@ -11,5 +11,12 @@ export async function addNoticeBoard(scene, assets, dims, obstacles, interactive
   nb.traverse(n => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; }});
   scene.add(nb);
   obstacles.push({ x: boardX, z: boardZ, r: 0.5 });
-  interactiveObjects.push({ type: 'pdf', position: new THREE.Vector3(boardX + 0.2, 1.8, boardZ + 0.5), path: './assets/plan.pdf' });
+  // Hacer el notice-board interactivo para abrir enlaces externos con E y R
+  interactiveObjects.push({
+    type: 'link',
+    position: new THREE.Vector3(boardX + 0.2, 1.8, boardZ + 0.5),
+    urlE: 'https://www.frc.utn.edu.ar/', // Página principal UTN FRC
+    urlR: 'https://www.institucional.frc.utn.edu.ar/sistemas/', // Departamento de Sistemas
+    interactionRadius: 2.8
+  });
 }

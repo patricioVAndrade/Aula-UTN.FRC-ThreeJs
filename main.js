@@ -12,6 +12,7 @@ import { addDoor } from './src/objects/door.js';
 import { addBackpack } from './src/objects/backpack.js';
 import { addVideoScreen } from './src/objects/videoScreen.js';
 import { addChargePanelLazy } from './src/objects/chargePanel.js';
+import { addOpenOldBook } from './src/objects/openOldBook.js';
 
 // ===================================
 // SETUP BÁSICO (modularizado)
@@ -72,7 +73,7 @@ async function setupScene() {
   }
   
   const chargePanel = addChargePanelLazy(scene, assets, sceneMgr, {
-    x: 6,
+    x: 8,
     y: 2.5,
     z: -sceneMgr.AULA_LARGO / 2,
     lookAtTarget: desksCenter,
@@ -83,6 +84,13 @@ async function setupScene() {
   const worldPos = new THREE.Vector3();
   chargePanel.getWorldPosition(worldPos);
   interactiveObjects.push({ type: 'video', position: worldPos.clone(), iframe: videoScreen.element });
+
+  // Libro antiguo abierto en el banco del medio del curso (x=0, z=2), mirando al pizarrón (hacia -Z)
+  const book = await addOpenOldBook(scene, assets, { x: 0, y: 1, z: -4, rotationY: Math.PI, scale: 2 });
+  // Hacerlo interactivo: al presionar E cerca, abrir assets/plan.pdf
+  const bookPos = new THREE.Vector3();
+  book.getWorldPosition(bookPos);
+  interactiveObjects.unshift({ type: 'pdf', position: bookPos.clone(), path: './assets/plan.pdf', interactionRadius: 2.2 });
 }
 setupScene();
 
@@ -129,6 +137,7 @@ function updateHUD(potentialInteraction) {
     else if (potentialInteraction.type === 'pdf') player.setHUD('Presiona [E] para leer el documento');
   else if (potentialInteraction.type === 'video') player.setHUD('Presiona [E] play/pausa video • [R] sonido on/off');
   else if (potentialInteraction.type === 'whiteboard') player.setHUD('Usa ← → para cambiar página');
+  else if (potentialInteraction.type === 'link') player.setHUD('Presiona [E] abrir UTN FRC • [R] Depto. Sistemas');
   } else if (player.controls.isLocked) {
     player.setHUD('W/A/S/D moverse • Mouse mirar • Shift correr • Espacio saltito • Esc salir');
   } else {
