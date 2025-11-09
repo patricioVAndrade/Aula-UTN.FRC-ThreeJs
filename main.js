@@ -11,7 +11,6 @@ import { addClock } from './src/objects/clock.js';
 import { addDoor } from './src/objects/door.js';
 import { addBackpack } from './src/objects/backpack.js';
 import { addVideoScreen } from './src/objects/videoScreen.js';
-import { addChargePanelLazy } from './src/objects/chargePanel.js';
 import { addOpenOldBook } from './src/objects/openOldBook.js';
 
 // ===================================
@@ -28,6 +27,8 @@ sceneMgr.setupLights();
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 200);
 camera.position.set(-10, 1.7, -7.5);
 camera.lookAt(0, 1.5, 0);
+const listener = new THREE.AudioListener();
+camera.add(listener);
 
 // ===================================
 // VARIABLES DE ESTADO E INTERACCIÓN
@@ -38,6 +39,35 @@ const interactiveObjects = [];
 const pdfViewer = document.getElementById('pdf-viewer');
 const pdfFrame = document.getElementById('pdf-frame');
 const closePdfBtn = document.getElementById('close-pdf');
+const audioLoader = new THREE.AudioLoader();
+const ambientSound = new THREE.Audio(listener);
+
+audioLoader.load(
+  // Ruta a tu archivo de sonido
+  './assets/ambiente_colegio.mp3',
+  
+  // Callback cuando se carga
+  function(buffer) {
+    ambientSound.setBuffer(buffer); // Asigna el audio cargado
+    ambientSound.setLoop(true);       // Queremos que se repita
+    ambientSound.setVolume(0.3);      // Volumen bajo, es de fondo
+    // No lo reproducimos aquí, esperamos al primer clic del usuario
+  },
+  
+  // Opcional: Callback de progreso
+  function (xhr) {
+    console.log( 'Audio ' + (xhr.loaded / xhr.total * 100) + '% loaded' );
+  },
+  
+  // Opcional: Callback de error
+  function (err) {
+    console.log( 'Error al cargar el audio ambiental' );
+  }
+);
+
+// 4. Variable de control para iniciar el audio una sola vez
+let audioStarted = false;
+// ---------------------
 // Referencia global al API de la pantalla para usar en el loop
 let videoScreen = null;
 
@@ -72,18 +102,7 @@ async function setupScene() {
     desksCenter.y = 1.2;
   }
   
-  const chargePanel = addChargePanelLazy(scene, assets, sceneMgr, {
-    x: 8,
-    y: 2.5,
-    z: -sceneMgr.AULA_LARGO / 2,
-    lookAtTarget: desksCenter,
-    yawOffset: -1.25
-  });
-  setupVideoRaycast(chargePanel, videoScreen.element);
   
-  const worldPos = new THREE.Vector3();
-  chargePanel.getWorldPosition(worldPos);
-  interactiveObjects.push({ type: 'video', position: worldPos.clone(), iframe: videoScreen.element });
 
   // Libro antiguo abierto en el banco del medio del curso (x=0, z=2), mirando al pizarrón (hacia -Z)
   const book = await addOpenOldBook(scene, assets, { x: 0, y: 1, z: -4, rotationY: Math.PI, scale: 2 });
@@ -102,8 +121,28 @@ const player = new PlayerController(camera, renderer.domElement, scene, obstacle
 const interaction = new InteractionManager(camera, player, interactiveObjects, { viewer: pdfViewer, frame: pdfFrame, closeBtn: closePdfBtn });
 const visRaycaster = new THREE.Raycaster();
 
-document.body.addEventListener('click', () => player.lock());
-renderer.domElement.addEventListener('click', () => player.lock());
+document.body.addEventListener('click', () => {
+  player.lock();
+  
+  // --- AÑADIR ESTO ---
+  // Inicia el audio en el primer click y solo una vez
+  if (!audioStarted && ambientSound.buffer) {
+    ambientSound.play();
+    audioStarted = true;
+  }
+  // ---------------------
+});
+
+renderer.domElement.addEventListener('click', () => {
+  player.lock();
+
+  // --- AÑADIR ESTO TAMBIÉN AQUÍ ---
+  if (!audioStarted && ambientSound.buffer) {
+    ambientSound.play();
+    audioStarted = true;
+  }
+  // ---------------------
+});
 
 let prev = performance.now();
 
@@ -218,40 +257,3 @@ addEventListener('resize', () => {
   if (sceneMgr.cssRenderer) sceneMgr.cssRenderer.setSize(innerWidth, innerHeight);
 });
 
-function setupVideoRaycast(targetObject, iframe) {
-  const raycaster = new THREE.Raycaster();
-  const mouse = new THREE.Vector2();
-  let playing = false;
-
-  renderer.domElement.addEventListener('click', (event) => {
-    if (!player.controls.isLocked) return;
-    
-    const rect = renderer.domElement.getBoundingClientRect();
-    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-    raycaster.setFromCamera(mouse, camera);
-    const hits = raycaster.intersectObject(targetObject, true);
-    
-    if (hits.length > 0) {
-      const cmd = playing ? 'pauseVideo' : 'playVideo';
-      iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: cmd, args: [] }), '*');
-      playing = !playing;
-      
-      if (playing && !iframe.dataset.autoplayBoosted) {
-        const url = new URL(iframe.src);
-        if (url.searchParams.get('autoplay') !== '1') {
-          url.searchParams.set('autoplay', '1');
-          iframe.src = url.toString();
-          iframe.dataset.autoplayBoosted = '1';
-        }
-      }
-      
-      targetObject.traverse(child => {
-        if (child.isMesh && child.material && 'emissive' in child.material) {
-          if (child.material.emissiveIntensity === undefined) child.material.emissiveIntensity = 0;
-          child.material.emissiveIntensity = child.material.emissiveIntensity > 0 ? 0 : 0.7;
-        }
-      });
-    }
-  });
-}

@@ -46,3 +46,76 @@ canvas { display:block; }
   cursor: pointer;
   z-index: 101;
 }
+
+/* --- AÑADIR TODO ESTO AL FINAL DE styles.css --- */
+
+/* 1. Capa para el difuminado desde negro */
+#fade-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: #000; /* Color negro */
+  z-index: 9999; /* Por encima de todo (excepto el hint) */
+  opacity: 1; /* Empieza opaco */
+  pointer-events: none; /* No bloquear clics del mouse */
+
+  /* Animación: nombre, duración, modo, retraso, 1 vez, quedarse al final */
+  animation: fadeFromBlack 5s ease-out 0.5s 1 forwards;
+}
+
+/* 2. Capa para el texto de ayuda */
+#tutorial-hint {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%); /* Centrado perfecto */
+  color: white;
+  font-size: 1.5em; 
+  font-family: sans-serif;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8); 
+  z-index: 10000; 
+  opacity: 0; 
+  pointer-events: none; 
+
+  /* --- AÑADIR ESTAS LÍNEAS --- */
+  background: rgba(0, 0, 0, 0.65); /* Fondo negro semitransparente */
+  border: 2px solid rgba(255, 255, 255, 0.8); /* Borde blanco */
+  border-radius: 8px; /* Bordes redondeados */
+  padding: 20px 30px; /* Espacio interno (20 arriba/abajo, 30 izq/der) */
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.5); /* Sombra suave */
+  text-align: center; /* Asegurar que el texto esté centrado si es largo */
+  /* -------------------------- */
+
+  /* Animación: aparecer, esperar y desaparecer */
+  animation: showAndFadeHint 7s ease-in-out 0.5s 1 forwards;
+}
+
+/* 3. Definición de las animaciones (Keyframes) */
+
+/* Animación para la capa negra */
+@keyframes fadeFromBlack {
+  to {
+    opacity: 0; /* Al final de la animación, es transparente */
+  }
+}
+
+/* Animación para el texto de ayuda */
+@keyframes showAndFadeHint {
+  0% {
+    opacity: 0;
+  }
+  /* Aparece (del 15% al 30%) */
+  15% {
+    opacity: 1;
+  }
+  /* Se mantiene visible (del 30% al 85%) */
+  85% {
+    opacity: 1;
+  }
+  /* Desaparece (del 85% al 100%) */
+  100% {
+    opacity: 0;
+  }
+}
