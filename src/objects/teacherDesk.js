@@ -31,3 +31,4 @@ export async function addTeacherDesk(scene, assets, obstacles) {
 
   return desk;
 }
+ 

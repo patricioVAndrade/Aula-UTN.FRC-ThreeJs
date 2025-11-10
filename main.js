@@ -5,13 +5,14 @@ import { PlayerController } from './src/playerController.js';
 import { InteractionManager } from './src/interactionManager.js';
 import { addWhiteboard } from './src/objects/whiteboard.js';
 import { addTeacherDesk } from './src/objects/teacherDesk.js';
-import { addNoticeBoard } from './src/objects/noticeBoard.js';
+import { addNoticeBoard, addNoticeBoardNextToWhiteboard } from './src/objects/noticeBoard.js';
 import { addSchoolDesks } from './src/objects/schoolDesks.js';
 import { addClock } from './src/objects/clock.js';
 import { addDoor } from './src/objects/door.js';
 import { addBackpack } from './src/objects/backpack.js';
 import { addVideoScreen } from './src/objects/videoScreen.js';
 import { addOpenOldBook } from './src/objects/openOldBook.js';
+import { addWallFrames } from './src/objects/wallFrames.js';
 import { addCeiling } from './src/objects/ceiling.js';
 import { addCeilingLights } from './src/objects/ceilingLight.js';
 import { addStudyTipsPaper } from './src/objects/studyTipsPaper.js';
@@ -90,10 +91,16 @@ async function setupScene() {
   addCeiling(scene, assets, sceneMgr);
   await addCeilingLights(scene, assets, sceneMgr);
   await addNoticeBoard(scene, assets, sceneMgr, obstacles, interactiveObjects);
+  await addNoticeBoardNextToWhiteboard(scene, assets, sceneMgr, interactiveObjects);
   await addSchoolDesks(scene, assets, obstacles, interactiveObjects);
   await addClock(scene, assets, sceneMgr);
   await addDoor(scene, assets, sceneMgr, obstacles);
   await addBackpack(scene, assets, obstacles);
+    // Cuadros en las paredes (requiere colocar las imágenes en assets o se usan placeholders)
+    await addWallFrames(scene, assets, sceneMgr, {
+      utnPhotoPath: './assets/utn_frc_portico.jpg',
+      sistemasLogoPath: './assets/logo_sistemas.png'
+    });
   videoScreen = addVideoScreen(scene, sceneMgr.cssScene, 'https://www.youtube.com/watch?v=cenYWW8zJUE', sceneMgr, { width: 8, height: 4.5, position: new THREE.Vector3(0, 3, sceneMgr.AULA_LARGO/2 - 0.02), rotationY: Math.PI });
   interactiveObjects.push({ type: 'video', position: videoScreen.position.clone(), iframe: videoScreen.element });
   
