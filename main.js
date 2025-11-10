@@ -12,6 +12,9 @@ import { addDoor } from './src/objects/door.js';
 import { addBackpack } from './src/objects/backpack.js';
 import { addVideoScreen } from './src/objects/videoScreen.js';
 import { addOpenOldBook } from './src/objects/openOldBook.js';
+import { addCeiling } from './src/objects/ceiling.js';
+import { addCeilingLights } from './src/objects/ceilingLight.js';
+import { addStudyTipsPaper } from './src/objects/studyTipsPaper.js';
 
 // ===================================
 // SETUP BÁSICO (modularizado)
@@ -79,18 +82,37 @@ sceneMgr.createRoom(texLoader);
 // ===================================
 async function setupScene() {
   // Whiteboard ahora requiere cámara y renderer para paginación y navegación con teclas
+  const paper = await addStudyTipsPaper(scene, assets);
   const whiteboardApi = await addWhiteboard(scene, assets, sceneMgr, camera, renderer);
   // Registrar como objeto interactivo para mostrar cartel HUD con radio ampliado
-  interactiveObjects.push({ type: 'whiteboard', position: whiteboardApi.position, interactionRadius: 7.0 });
+  interactiveObjects.push({ type: 'whiteboard', position: whiteboardApi.position, interactionRadius: 4.0 });
   const teacherDesk = await addTeacherDesk(scene, assets, obstacles);
+  addCeiling(scene, assets, sceneMgr);
+  await addCeilingLights(scene, assets, sceneMgr);
   await addNoticeBoard(scene, assets, sceneMgr, obstacles, interactiveObjects);
   await addSchoolDesks(scene, assets, obstacles, interactiveObjects);
   await addClock(scene, assets, sceneMgr);
   await addDoor(scene, assets, sceneMgr, obstacles);
   await addBackpack(scene, assets, obstacles);
-  // Pantalla de video en pared frontal: CSS3D + marco WebGL pegado a la pared
   videoScreen = addVideoScreen(scene, sceneMgr.cssScene, 'https://www.youtube.com/watch?v=cenYWW8zJUE', sceneMgr, { width: 8, height: 4.5, position: new THREE.Vector3(0, 3, sceneMgr.AULA_LARGO/2 - 0.02), rotationY: Math.PI });
   interactiveObjects.push({ type: 'video', position: videoScreen.position.clone(), iframe: videoScreen.element });
+  
+
+  // 2. Si se cargó correctamente, lo hacemos interactivo
+  if (paper) {
+      const paperPosVec = new THREE.Vector3();
+      paper.getWorldPosition(paperPosVec);
+
+      // Lo añadimos al array de interacciones
+      interactiveObjects.push({ 
+          type: 'tips',
+          position: paperPosVec.clone(),
+          interactionRadius: 3 // Un radio pequeño
+      });
+  }
+    
+  // Pantalla de video en pared frontal: CSS3D + marco WebGL pegado a la pared
+  
   
   // Panel de carga con orientación hacia los bancos
   const chairs = interactiveObjects.filter(o => o.type === 'chair');
@@ -167,16 +189,19 @@ function animate() {
 }
 
 function updateHUD(potentialInteraction) {
-  if (player.isSitting) {
-    player.setHUD('Mouse: Mirar alrededor • Presiona [E] para levantarte');
-  } else if (player.isReadingPDF) {
+  if (player.isReadingPDF) {
     // No mostrar HUD
-  } else if (potentialInteraction) {
-    if (potentialInteraction.type === 'chair') player.setHUD('Presiona [E] para sentarte');
-    else if (potentialInteraction.type === 'pdf') player.setHUD('Presiona [E] para leer el documento');
+  } else if (player.isReadingTips) {
+    player.setHUD('Presiona [E] o [Esc] para cerrar');
+  
+  }
+    else if (potentialInteraction) {
+    
+    if (potentialInteraction.type === 'pdf') player.setHUD('Presiona [E] para leer el documento');
+  else if (potentialInteraction.type === 'tips') player.setHUD('Presiona [E] para leer los tips');
   else if (potentialInteraction.type === 'video') player.setHUD('Presiona [E] play/pausa video • [R] sonido on/off');
   else if (potentialInteraction.type === 'whiteboard') player.setHUD('Usa ← → para cambiar página');
-  else if (potentialInteraction.type === 'link') player.setHUD('Presiona [E] abrir UTN FRC • [R] Depto. Sistemas');
+  else if (potentialInteraction.type === 'link') player.setHUD('Presiona [E] abrir UTN FRC • [R] Dpto. Sistemas');
   } else if (player.controls.isLocked) {
     player.setHUD('W/A/S/D moverse • Mouse mirar • Shift correr • Espacio saltito • Esc salir');
   } else {

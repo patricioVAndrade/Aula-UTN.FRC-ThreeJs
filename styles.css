@@ -47,7 +47,61 @@ canvas { display:block; }
   z-index: 101;
 }
 
-/* --- AÑADIR TODO ESTO AL FINAL DE styles.css --- */
+#tips-backdrop {
+  display: none; /* Oculto por defecto */
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.2);
+  
+  /* ¡La magia del difuminado! */
+  backdrop-filter: blur(5px);
+  
+  z-index: 20; /* Encima de todo, pero debajo del papel */
+}
+
+/* Estilo para la "hoja de papel" */
+#tips-sheet {
+  display: none; /* Oculto por defecto */
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  
+  background-color: #fefef5; /* Color de papel */
+  color: #333;
+  padding: 2em;
+  border-radius: 5px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  
+  max-width: 500px;
+  width: 90%;
+  
+  font-family: 'Arial', sans-serif;
+  z-index: 21; /* Encima del fondo difuminado */
+}
+
+#tips-sheet h2 {
+  margin-top: 0;
+  border-bottom: 2px solid #ddd;
+  padding-bottom: 10px;
+}
+
+#tips-sheet ul {
+  line-height: 1.6;
+}
+
+#close-tips-btn {
+  margin-top: 1.5em;
+  padding: 10px 15px;
+  border: none;
+  background-color: #333;
+  color: white;
+  cursor: pointer;
+  border-radius: 3px;
+}
 
 /* 1. Capa para el difuminado desde negro */
 #fade-overlay {

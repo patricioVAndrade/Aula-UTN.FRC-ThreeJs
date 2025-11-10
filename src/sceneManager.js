@@ -40,6 +40,7 @@ export class SceneManager {
   setupLights() {
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.8));
     const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+    const ambient = new THREE.AmbientLight(0xFFFFFF, 0.1);
     sun.position.set(15, 25, 10);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -50,6 +51,7 @@ export class SceneManager {
     sun.shadow.camera.top = 25;
     sun.shadow.camera.bottom = -25;
     this.scene.add(sun);
+    this.scene.add(ambient);
   }
 
   createRoom(texLoader) {
@@ -66,7 +68,7 @@ export class SceneManager {
     floor.receiveShadow = true;
     this.scene.add(floor);
 
-    const wallTexture = texLoader.load('./assets/Bricks078_1K-JPG_Color.jpg');
+    const wallTexture = texLoader.load('./assets/Wood090B_1K-JPG_Color.jpg');
     wallTexture.wrapS = wallTexture.wrapT = THREE.RepeatWrapping;
     wallTexture.repeat.set(AULA_ANCHO / 5, AULA_ALTO / 5);
     const wallMat = new THREE.MeshStandardMaterial({ map: wallTexture, roughness: 0.9 });

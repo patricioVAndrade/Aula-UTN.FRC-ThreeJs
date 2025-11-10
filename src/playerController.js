@@ -19,6 +19,7 @@ export class PlayerController {
 
     this.isSitting = false;
     this.isReadingPDF = false;
+    this.isReadingTips = false;
 
     this.speed = 4; this.runMult = 2; this.jumpVel = 5; this.gravity = 15; this.velY = 0; this.onFloor = true;
     this.bounds = { minX: -11, maxX: 11, minZ: -14, maxZ: 14 };
@@ -54,7 +55,7 @@ export class PlayerController {
 
   update(dt) {
     // movement and physics
-    if (this.controls.isLocked && !this.isSitting) {
+    if (this.controls.isLocked && !this.isSitting && !this.isReadingTips) {
       this.camera.getWorldDirection(this.forward); this.forward.y = 0; this.forward.normalize();
       this.right.crossVectors(this.forward, this.up).normalize();
       this.intent.set(0,0,0);
