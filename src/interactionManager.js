@@ -31,7 +31,7 @@ export class InteractionManager {
     this.closeTipsBtn.addEventListener('click', () => this.closeTips());
     
     document.addEventListener('keydown', (e) => this.handleInteraction(e), false);
-    document.addEventListener('keydown', (e) => this.handleVideoAudio(e), false);
+  document.addEventListener('keydown', (e) => this.handleVideoAudio(e), false);
 
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
@@ -111,8 +111,10 @@ export class InteractionManager {
         } else if (this.potential.type === 'video') {
             this.toggleVideo();
             
-        } else if (this.potential.type === 'link') {
-            this.openLink(this.potential.url);
+    } else if (this.potential.type === 'link') {
+      // Preferir urlE cuando se presiona E; si no existe, usar url genérica
+      const url = this.potential.urlE || this.potential.url;
+      if (url) this.openLink(url);
         }
     }
   }
@@ -165,6 +167,13 @@ export class InteractionManager {
   handleVideoAudio(e) {
     if (e.key !== 'r' && e.key !== 'R') return;
 
+    // Si estamos cerca de un link que define una acción secundaria (urlR), dar prioridad a abrir ese enlace
+    if (this.potential && this.potential.type === 'link' && this.potential.urlR) {
+      this.openLink(this.potential.urlR);
+      return;
+    }
+
+    // Si no hay acción secundaria de link, manejar audio del video si estamos cerca de la pantalla
     const nearVideo = this.objects.some(o => o.type === 'video' && this.camera.position.distanceTo(o.position) < (o.interactionRadius || this.interactionDist));
     if (!nearVideo) return;
     
@@ -180,7 +189,15 @@ export class InteractionManager {
   }
   
   openLink(url) {
-      window.open(url, '_blank');
+      if (!url) return;
+      // Intentar abrir en nueva pestaña dentro del gesto de teclado
+      try {
+        const win = window.open(url, '_blank');
+        // Fallback: si fue bloqueado, navegar en la misma pestaña
+        if (!win) window.location.href = url;
+      } catch (_) {
+        window.location.href = url;
+      }
   }
 
 } // Fin de la clase InteractionManager

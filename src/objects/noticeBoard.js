@@ -17,7 +17,8 @@ export async function addNoticeBoard(scene, assets, dims, obstacles, interactive
     position: new THREE.Vector3(boardX + 0.2, 1.8, boardZ + 0.5),
     urlE: 'https://www.frc.utn.edu.ar/', // Página principal UTN FRC
     urlR: 'https://www.institucional.frc.utn.edu.ar/sistemas/', // Departamento de Sistemas
-    interactionRadius: 2.8
+    interactionRadius: 2.8,
+    hud: 'Presiona [E] ir a la página principal de la facultad • [R] ir al Departamento de Sistemas'
   });
 }
 

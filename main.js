@@ -95,7 +95,7 @@ async function setupScene() {
   await addSchoolDesks(scene, assets, obstacles, interactiveObjects);
   await addClock(scene, assets, sceneMgr);
   await addDoor(scene, assets, sceneMgr, obstacles);
-  await addBackpack(scene, assets, obstacles);
+  await addBackpack(scene, assets, obstacles, interactiveObjects);
     // Cuadros en las paredes (requiere colocar las imágenes en assets o se usan placeholders)
     await addWallFrames(scene, assets, sceneMgr, {
       utnPhotoPath: './assets/utn_frc_portico.jpg',
@@ -150,6 +150,32 @@ const player = new PlayerController(camera, renderer.domElement, scene, obstacle
 const interaction = new InteractionManager(camera, player, interactiveObjects, { viewer: pdfViewer, frame: pdfFrame, closeBtn: closePdfBtn });
 const visRaycaster = new THREE.Raycaster();
 
+// UI Banner para la mochila
+const backpackBanner = document.getElementById('backpack-banner');
+const closeBackpackBannerBtn = document.getElementById('close-backpack-banner');
+let backpackBannerVisible = false;
+
+function showBackpackBanner() {
+  if (!backpackBannerVisible) {
+    backpackBanner.classList.remove('hidden');
+    // Ocultar HUD pequeño mientras el banner grande está visible
+    if (hud) hud.style.display = 'none';
+    backpackBannerVisible = true;
+  }
+}
+
+function hideBackpackBanner() {
+  if (backpackBannerVisible) {
+    backpackBanner.classList.add('hidden');
+    if (hud) hud.style.display = '';
+    backpackBannerVisible = false;
+  }
+}
+
+if (closeBackpackBannerBtn) {
+  closeBackpackBannerBtn.addEventListener('click', () => hideBackpackBanner());
+}
+
 document.body.addEventListener('click', () => {
   player.lock();
   
@@ -185,6 +211,14 @@ function animate() {
   const potentialInteraction = interaction.potential;
 
   updateHUD(potentialInteraction);
+  // Mostrar/ocultar banner grande de la mochila según proximidad
+  if (player.isReadingPDF || player.isReadingTips) {
+    hideBackpackBanner();
+  } else if (potentialInteraction && potentialInteraction.type === 'link' && potentialInteraction.bannerId === 'backpack') {
+    showBackpackBanner();
+  } else {
+    hideBackpackBanner();
+  }
   player.update(dt);
   
   renderer.render(scene, camera);
@@ -208,7 +242,10 @@ function updateHUD(potentialInteraction) {
   else if (potentialInteraction.type === 'tips') player.setHUD('Presiona [E] para leer los tips');
   else if (potentialInteraction.type === 'video') player.setHUD('Presiona [E] play/pausa video • [R] sonido on/off');
   else if (potentialInteraction.type === 'whiteboard') player.setHUD('Usa ← → para cambiar página');
-  else if (potentialInteraction.type === 'link') player.setHUD('Presiona [E] abrir UTN FRC • [R] Dpto. Sistemas');
+  else if (potentialInteraction.type === 'link') {
+    if (potentialInteraction.hud) player.setHUD(potentialInteraction.hud);
+    else player.setHUD('Presiona [E] abrir enlace • [R] acción secundaria');
+  }
   } else if (player.controls.isLocked) {
     player.setHUD('W/A/S/D moverse • Mouse mirar • Shift correr • Espacio saltito • Esc salir');
   } else {
